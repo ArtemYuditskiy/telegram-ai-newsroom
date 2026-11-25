@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ t('Request error') }} · Newsroom{% endblock %}
+{% block content %}
+<section class="panel error-page">
+  <h1>{{ t('Request could not be completed') }}</h1>
+  <p>{{ t(message) }}</p>
+  <a class="button" href="/">{{ t('Return to queue') }}</a>
+</section>
+{% endblock %}

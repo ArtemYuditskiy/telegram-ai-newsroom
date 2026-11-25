@@ -1,0 +1,51 @@
+x-newsroom: &newsroom
+  image: telegram-ai-newsroom:local
+  build: .
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  volumes:
+    - newsroom-data:/data
+
+services:
+  migrate:
+    <<: *newsroom
+    command: [telegram-ai-newsroom, db, upgrade, --db, /data/newsroom.db]
+
+  web:
+    <<: *newsroom
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: [telegram-ai-newsroom, web, serve, --db, /data/newsroom.db, --host, "0.0.0.0"]
+    environment:
+      NEWSROOM_ADMIN_HASH: ${NEWSROOM_ADMIN_HASH:-}
+      NEWSROOM_PROFILES: ${NEWSROOM_PROFILES:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    ports:
+      - "127.0.0.1:${NEWSROOM_WEB_PORT:-8000}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  worker:
+    <<: *newsroom
+    profiles: [telegram]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: [telegram-ai-newsroom, worker, run, --db, /data/newsroom.db]
+    environment:
+      NEWSROOM_TELEGRAM_TOKEN: ${NEWSROOM_TELEGRAM_TOKEN:-}
+      NEWSROOM_TELEGRAM_CHAT_ID: ${NEWSROOM_TELEGRAM_CHAT_ID:-}
+    stop_grace_period: 90s
+    restart: unless-stopped
+
+volumes:
+  newsroom-data:

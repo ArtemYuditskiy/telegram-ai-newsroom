@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "name": "draft_keep_advisory_scope",
+      "stage": "draft",
+      "title": "HarborWeb 2.4.3 addresses a high-severity authentication issue",
+      "article": "The HarborWeb security team's advisory HW-2026-04 identifies a high-severity authentication issue during session renewal in versions 2.4.0 to 2.4.2. The team recommends affected operators upgrade to 2.4.3. The advisory does not report exploitation in the wild.",
+      "required_text": ["2.4.2", "2.4.3"],
+      "rationale": "Retain affected and fixed versions. Manually check that silence is omitted or attributed to the advisory."
+    },
+    {
+      "name": "draft_keep_measurement_scope",
+      "stage": "draft",
+      "title": "Slate Queue resolves the EU-West delivery incident",
+      "article": "Slate Queue's incident note says it restored delivery in EU-West after a 14-minute interruption. The team's checks found no duplicate deliveries in the EU-West sample it examined. The update does not assess other regions.",
+      "required_text": ["14", "eu-west"],
+      "rationale": "A different topic tests whether the draft omits or accurately scopes the negative finding."
+    },
+    {
+      "name": "review_broadened_advisory_claim",
+      "stage": "review",
+      "title": "HarborWeb releases patch 2.4.3",
+      "article": "The HarborWeb security team released 2.4.3 and recommends affected operators upgrade. The advisory does not report exploitation in the wild.",
+      "draft": "HarborWeb ships patch 2.4.3. There have been no reports of exploitation in the wild.",
+      "expected_supported": false,
+      "rationale": "Regression case. The patch bulletin is only one source."
+    },
+    {
+      "name": "review_broadened_sample_claim",
+      "stage": "review",
+      "title": "Slate Queue resolves the EU-West delivery incident",
+      "article": "Slate Queue's incident note says it restored delivery in EU-West after a 14-minute interruption. The team's checks found no duplicate deliveries in the EU-West sample it examined. The update does not assess other regions.",
+      "draft": "Slate Queue restored delivery in EU-West after 14 minutes. The incident caused no duplicate deliveries in any region.",
+      "expected_supported": false,
+      "rationale": "A negative finding from a sample cannot be extended to all regions."
+    },
+    {
+      "name": "review_scoped_sample_claim",
+      "stage": "review",
+      "title": "Slate Queue resolves the EU-West delivery incident",
+      "article": "Slate Queue's incident note says it restored delivery in EU-West after a 14-minute interruption. The team's checks found no duplicate deliveries in the EU-West sample it examined. The update does not assess other regions.",
+      "draft": "Slate Queue restored delivery in EU-West after 14 minutes. Its team observed no duplicate deliveries in the EU-West sample it checked.",
+      "expected_supported": true,
+      "rationale": "Contrast case. A reviewer should accept a faithful scoped negative."
+    }
+  ]
+}

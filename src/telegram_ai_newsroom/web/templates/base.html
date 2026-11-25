@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"includeIndicatorStyles":false}'>
+  <title>{% block title %}Newsroom{% endblock %}</title>
+  <link rel="stylesheet" href="/assets/editor.css">
+  <script src="/assets/htmx.min.js" defer></script>
+  <script src="/assets/editor.js" defer></script>
+</head>
+<body hx-history="false">
+  <a class="skip" href="#main">{{ t('Skip to content') }}</a>
+  <header class="masthead">
+    <div class="shell topbar">
+      <a class="brand" href="/" aria-label="{{ t('Newsroom home') }}"><span class="brand-mark" aria-hidden="true">N</span><span>Newsroom</span></a>
+      {% if csrf %}
+      <nav aria-label="{{ t('Workspace') }}">
+        <a href="/" {% if section == 'queue' %}aria-current="page"{% endif %}>{{ t('Queue') }}</a>
+        <a href="/sources" {% if section == 'sources' %}aria-current="page"{% endif %}>{{ t('Sources') }}</a>
+      </nav>
+      {% endif %}
+      <div class="header-actions">
+      <details class="language-picker">
+        <summary aria-label="{{ t('Language') }}">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>
+          </svg>
+          <span aria-hidden="true">{{ language | upper }}</span>
+        </summary>
+        <ul class="language-options" aria-label="{{ t('Language') }}">
+          {% for code, name in languages.items() %}
+          <li><a href="{{ language_url(code) }}" lang="{{ code }}" hreflang="{{ code }}"{% if code == language %} aria-current="true"{% endif %}>{{ name }}</a></li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% if csrf %}
+      <form action="/logout" method="post">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="quiet" type="submit">{{ t('Sign out') }}</button>
+      </form>
+      {% endif %}
+      </div>
+    </div>
+  </header>
+  <main id="main" class="shell">{% block content %}{% endblock %}</main>
+</body>
+</html>

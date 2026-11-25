@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.title }} · Newsroom{% endblock %}
+{% block content %}
+{% macro action(name, label, class_name='') %}
+<form action="/candidates/{{ entry.candidate_id }}/revisions/{{ draft.id }}/{{ name }}" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit" class="{{ class_name }}">{{ label }}</button>
+</form>
+{% endmacro %}
+<div class="page-heading">
+  <a class="back" href="/">{{ t('Editorial queue') }}</a>
+  <span class="tag status-{{ draft.state if draft else entry.state }}">{{ t((draft.state if draft else entry.state) | replace('_', ' ') | capitalize) }}</span>
+  <h1>{{ entry.title }}</h1>
+  {% if entry.published_at %}<p>{{ t('Published') }} {{ entry.published_at[:10] }}</p>{% endif %}
+</div>
+{% if error %}<p class="error" role="alert">{{ t(error) }}</p>{% endif %}
+<div class="review-layout">
+  <section class="panel reading">
+    <div class="panel-heading"><h2>{{ t('Source article') }}</h2>{% if safe_url(entry.url) %}<a href="{{ entry.url }}" rel="noreferrer">{{ t('Open source') }}</a>{% endif %}</div>
+    <div class="article-text" tabindex="0" role="region" aria-label="{{ t('Source article text') }}">{{ entry.text }}</div>
+  </section>
+  <section class="panel draft-panel">
+    <div class="panel-heading"><h2>{{ t('Telegram preview') }}</h2></div>
+    {% if draft %}
+    <div class="draft-content">
+      <div class="preview">
+        <strong>{{ draft.headline }}</strong>
+        <div class="preview-body">{{ draft.body }}</div>
+        {% if safe_url(entry.url) %}<a href="{{ entry.url }}" rel="noreferrer">{{ t('Source article') }}</a>{% endif %}
+      </div>
+      <p class="hint">{{ t('{count} / 700 body characters', count=draft.body | length) }}</p>
+      {% if draft.review %}
+      <section class="review-note {% if not draft.review.supported %}warning{% endif %}">
+        <h3>{{ t('Model review passed' if draft.review.supported else 'Model review found issues') }}</h3>
+        {% if draft.review.issues %}<ul>{% for issue in draft.review.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+        {% else %}<p>{{ t('Check attribution and scope against the article before approving.') }}</p>{% endif %}
+      </section>
+      {% elif draft.kind == 'edited' %}
+      <p class="hint">{{ t('Manual edit. Check this version against the source before approving.') }}</p>
+      {% endif %}
+      <div class="actions">
+        {% if draft.state == 'review_pending' %}
+        {{ action('approve', t('Approve draft'), 'primary') }}
+        {{ action('reject', t('Reject'), 'danger') }}
+        {% endif %}
+        {% if has_models %}{{ action('regenerate', t('Regenerate')) }}{% endif %}
+      </div>
+      <details class="section" {% if values.get('headline') or values.get('body') %}open{% endif %}>
+        <summary>{{ t('Edit as new revision') }}</summary>
+        <form action="/candidates/{{ entry.candidate_id }}/revisions/{{ draft.id }}/edit" method="post" class="stack">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="headline">{{ t('Headline') }}</label>
+          <input id="headline" name="headline" value="{{ values.get('headline', draft.headline) }}" required maxlength="120">
+          <label for="body">{{ t('Body') }}</label>
+          <textarea id="body" name="body" rows="7" required maxlength="700" aria-describedby="body-count">{{ values.get('body', draft.body) }}</textarea>
+          <span id="body-count" class="hint" data-counter="body" data-count-format="{{ t('{count} / 700 characters') }}" data-count-error="{{ t('Body must contain at most 700 characters.') }}">{{ t('{count} / 700 characters', count=values.get('body', draft.body) | length) }}</span>
+          <button type="submit">{{ t('Save revision') }}</button>
+        </form>
+      </details>
+      {% if draft.state == 'approved' %}
+      <section class="section">
+        <h3>{{ t('Schedule this revision') }}</h3>
+        {% for publication in scheduled %}
+        <p class="hint"><time datetime="{{ publication.due_at }}">{{ publication.due_at[:16] | replace('T', ' ') }} UTC</time> · {{ t(publication.state | replace('_', ' ')) }}
+          {% if publication.message_id %} · Telegram #{{ publication.message_id }}{% endif %}
+          {% if publication.destination == 'fake' %} · {{ t('Local demo') }}{% endif %}
+          {% if publication.state == 'uncertain' %} · {{ publication.id }}{% endif %}
+        </p>
+        {% endfor %}
+        <form action="/candidates/{{ entry.candidate_id }}/revisions/{{ draft.id }}/schedule" method="post" class="stack">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="due">{{ t('Local date and time') }}</label>
+          <input id="due" name="due" type="datetime-local" required value="{{ values.get('due', '') }}">
+          <label for="timezone">{{ t('Time zone') }}</label>
+          <input id="timezone" name="timezone" required value="{{ values.get('timezone', timezone) }}" aria-describedby="zone-help">
+          <span class="hint" id="zone-help">{{ t('IANA name, for example Europe/Minsk. Stored in UTC.') }}</span>
+          <button class="primary" type="submit">{{ t('Schedule publication') }}</button>
+        </form>
+      </section>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="draft-content">
+      <p>{{ t('No draft for this candidate yet.') }}</p>
+      {% if entry.state == 'eligible' and has_models %}
+      <form method="post" action="/candidates/{{ entry.candidate_id }}/process">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="primary">{{ t('Score and draft') }}</button>
+      </form>
+      {% elif entry.state == 'eligible' %}<p class="hint">{{ t('Configure model profiles to process articles here.') }}</p>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+<div class="review-layout lower">
+  {% if score %}
+  <section class="panel">
+    <div class="panel-heading"><h2>{{ t('Editorial score') }}</h2><strong class="score">{{ entry.score }}<small>/100 · {{ t('cutoff') }} {{ entry.threshold }}</small></strong></div>
+    <div class="padded"><p>{{ score.reason }}</p><dl class="score-grid">
+      <div><dt>{{ t('Relevance') }}</dt><dd>{{ score.relevance }}</dd></div><div><dt>{{ t('Importance') }}</dt><dd>{{ score.importance }}</dd></div>
+      <div><dt>{{ t('Novelty') }}</dt><dd>{{ score.novelty }}</dd></div><div><dt>{{ t('Source quality') }}</dt><dd>{{ score.source_quality }}</dd></div>
+    </dl></div>
+  </section>
+  {% endif %}
+  <section class="panel">
+    <div class="panel-heading"><h2>{{ t('Revision history') }}</h2></div>
+    <ul class="history">
+      {% for row in revisions %}
+      <li><a href="/candidates/{{ entry.candidate_id }}?revision={{ row.id }}" {% if draft and row.id == draft.id %}aria-current="true"{% endif %}>{{ t(row.kind | default('Original', true) | capitalize) }} · {{ (row.id | string)[:8] }}</a><span class="tag status-{{ row.state }}">{{ t(row.state | replace('_', ' ') | capitalize) }}</span></li>
+      {% else %}<li>{{ t('No revisions yet.') }}</li>{% endfor %}
+    </ul>
+    {% if history %}
+    <details class="padded">
+      <summary>{{ t('Model calls') }}</summary>
+      <ul class="audit-list">{% for call in history %}<li><strong>{{ call.operation }} · {{ call.outcome }}</strong> <span>{{ call.backend }} / {{ call.model }} · {{ call.prompt_version }}{% if draft and draft.run_id == call.run_id %} · {{ t('this revision') }}{% endif %}</span></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

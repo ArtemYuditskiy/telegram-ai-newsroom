@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ t('Sign in') }} · Newsroom{% endblock %}
+{% block content %}
+<section class="login panel">
+  {% if demo %}<p class="label">{{ t('Local demo') }}</p>{% endif %}
+  <h1>{{ t('Editor sign-in') }}</h1>
+  {% if error %}<p class="error" role="alert">{{ t(error) }}</p>{% endif %}
+  <form action="/login" method="post" class="stack">
+    <input type="hidden" name="csrf" value="{{ nonce }}">
+    <label for="password">{{ t('Admin password') }}</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+    <button class="primary" type="submit">{{ t('Sign in') }}</button>
+  </form>
+</section>
+{% endblock %}

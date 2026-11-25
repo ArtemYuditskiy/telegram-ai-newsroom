@@ -1,0 +1,45 @@
+<section id="queue-content" aria-label="{{ t('Candidates') }}">
+  <div class="stats" aria-label="{{ t('Queue overview') }}">
+    <div><span>{{ t('Ready to score') }}</span><strong>{{ counts.get('eligible', 0) }}</strong></div>
+    <div><span>{{ t('Drafted candidates') }}</span><strong>{{ counts.get('drafted', 0) }}</strong></div>
+    <div><span>{{ t('Passed over') }}</span><strong>{{ counts.get('rejected', 0) }}</strong></div>
+  </div>
+  <div class="panel queue">
+    <div class="panel-heading">
+      <h2>{{ t('Candidates') }}</h2>
+      <form action="/" method="get" class="filter" hx-get="/" hx-target="#queue-content"
+            hx-swap="outerHTML" hx-push-url="true" hx-disabled-elt="find button">
+        <label for="state">{{ t('Status') }}</label>
+        <select id="state" name="state">
+          {% for value, label in filters.items() %}<option value="{{ value }}" {% if state == value %}selected{% endif %}>{{ t(label) }}</option>{% endfor %}
+        </select>
+        <button type="submit">{{ t('Apply') }}</button>
+        <span class="htmx-indicator" role="status">{{ t('Loading…') }}</span>
+      </form>
+    </div>
+    {% if rows %}
+    <ul class="queue-list">
+      {% for row in rows %}
+      <li>
+        <div class="candidate-name">
+          <a href="/candidates/{{ row.candidate_id }}{% if row.revision_id %}?revision={{ row.revision_id }}{% endif %}">{{ row.title }}</a>
+          <span>{{ row.url.split('/')[2] }}{% if row.published_at %} · {{ row.published_at[:10] }}{% endif %}</span>
+        </div>
+        <div class="candidate-status">
+          {% if row.score is not none %}<span class="score">{{ row.score }}<small>/100</small></span>{% endif %}
+          {% set status = row.draft_state or row.state %}
+          <span class="tag status-{{ status }}">{{ t(status | replace('_', ' ') | capitalize) }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="empty">{{ t('No candidates match this filter.') }} {{ t('Collect articles from') }} <a href="/sources">{{ t('Sources') }}</a> {{ t('or choose another status.') }}</p>{% endif %}
+    {% if page > 1 or more %}
+    <nav class="pagination" aria-label="{{ t('Queue pages') }}">
+      {% if page > 1 %}<a class="button" href="/?state={{ state }}&page={{ page - 1 }}">{{ t('Previous') }}</a>{% endif %}
+      <span>{{ t('Page') }} {{ page }}</span>
+      {% if more %}<a class="button" href="/?state={{ state }}&page={{ page + 1 }}">{{ t('Next') }}</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</section>

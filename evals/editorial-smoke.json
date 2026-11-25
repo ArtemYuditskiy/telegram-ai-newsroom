@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "name": "breaking_database_change",
+      "title": "Northbridge DB Driver 4.0 caps reconnect attempts",
+      "article": "In its official November 18 release notes, the Northbridge DB team announced Driver 4.0. The previous driver retried indefinitely when the database was unavailable. Driver 4.0 makes up to five reconnect attempts before returning an error to the application. Services that relied on indefinite reconnects may need to handle that error explicitly. The maintainers recommend testing failover in staging before upgrading production deployments. Existing connection strings continue to work. The release notes include a migration example for Python applications. Driver 4.0 is available now. The release notes make no claims about query performance.",
+      "expected_selected": true
+    },
+    {
+      "name": "shopping_roundup",
+      "title": "Our favorite desk accessories are on sale",
+      "article": "The Desk Edit newsletter lists discounted desk lamps, cable clips, and laptop stands. The author selected items that were already available last year and noted the current prices at several retailers. There are no changes to software, hardware design, or technical standards. The roundup explains how to combine a promotional code with a store discount and includes advice about checking return policies. The author expects some prices to increase when the promotion ends. The publication plans to update the list when individual offers expire.",
+      "expected_selected": false
+    },
+    {
+      "name": "security_patch",
+      "title": "HarborWeb 2.4.3 fixes a high-severity session renewal issue",
+      "article": "The HarborWeb security team published advisory HW-2026-04 on November 18. It describes a high-severity authentication issue affecting versions 2.4.0 through 2.4.2. The maintainers released HarborWeb 2.4.3 and urge operators of affected deployments to upgrade. The advisory says the issue is limited to session renewal. It does not report exploitation in the wild.",
+      "expected_selected": true
+    },
+    {
+      "name": "event_logistics",
+      "title": "Venue changes for a local meetup",
+      "article": "Organizers of the Riverside Python meetup moved Thursday's event from the library to the community hall. Existing tickets remain valid. The talk schedule and start time are unchanged.",
+      "expected_selected": false
+    }
+  ],
+  "stage_probe": {
+    "title": "Northbridge DB Driver 4.0 caps reconnect attempts",
+    "article": "The Northbridge DB team released Driver 4.0 on November 18. Driver 4.0 makes up to five reconnect attempts before returning an error to the application. Existing connection strings continue to work. The release notes make no claims about query performance.",
+    "review_draft": "Northbridge DB Driver 4.0 caps reconnect attempts\n\nDriver 4.0 makes up to ten reconnect attempts before returning an error to the application.",
+    "expected_supported": false
+  }
+}

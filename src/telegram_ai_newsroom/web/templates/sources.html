@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ t('Sources') }} · Newsroom{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <h1>{{ t('Sources') }}</h1>
+  <p>{{ t('Verify RSS feeds, check recent collection and manage what enters the queue.') }}</p>
+</div>
+{% if error %}<p class="error" role="alert">{{ t(error) }}</p>{% endif %}
+{% if counts is defined %}
+<section class="panel padded" role="status"><h2>{{ t('Collection result') }}</h2>
+  {% for url, outcomes in counts %}<p>{{ url }} · {% for reason, amount in outcomes.items() %}{{ reason }}: {{ amount }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% else %}<p>{{ t('Enable a verified feed before collecting articles.') }}</p>{% endfor %}
+</section>
+{% endif %}
+<div class="review-layout">
+  <section class="panel">
+    <div class="panel-heading"><h2>{{ t('Feed directory') }}</h2>
+      {% if not demo %}<form method="post" action="/sources/collect"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">{{ t('Collect now') }}</button></form>{% endif %}
+    </div>
+    <ul class="sources-list">
+      {% for row in rows %}
+      <li>
+        <div class="candidate-name">
+          {% if safe_url(row.url) %}<a href="{{ row.url }}" rel="noreferrer">{{ row.url }}</a>{% else %}<strong>{{ row.url }}</strong>{% endif %}
+          <span>{{ t('Last success') }}: {{ row.last_success_at[:16] | replace('T', ' ') ~ ' UTC' if row.last_success_at else t('not collected yet') }}</span>
+          {% if row.last_error %}<span class="failure">{{ row.last_error }}</span>{% endif %}
+        </div>
+        <span class="tag {{ 'status-approved' if row.enabled }}">{{ t('Enabled' if row.enabled else 'Paused') }}</span>
+        {% if not demo %}
+        <form method="post" action="/sources/{{ 'disable' if row.enabled else 'enable' }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ row.url }}">
+          <button type="submit">{{ t('Pause' if row.enabled else 'Enable') }}</button>
+        </form>
+        {% endif %}
+      </li>
+      {% else %}<li class="empty">{{ t('No approved sources.') }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% if not demo %}
+  <section class="panel padded">
+    <h2>{{ t('Verify a feed') }}</h2>
+    <form method="post" action="/sources/approve" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="url">{{ t('RSS or Atom URL') }}</label>
+      <input id="url" name="url" type="url" maxlength="2048" autocomplete="off" required value="{{ values.url if values is defined else '' }}">
+      <label for="hosts">{{ t('Additional approved hostnames') }}</label>
+      <input id="hosts" name="hosts" autocomplete="off" aria-describedby="hosts-help" value="{{ values.hosts if values is defined else '' }}">
+      <span id="hosts-help" class="hint">{{ t("Comma-separated. Only add domains where this feed's articles are hosted.") }}</span>
+      <button class="primary" type="submit">{{ t('Verify and enable') }}</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

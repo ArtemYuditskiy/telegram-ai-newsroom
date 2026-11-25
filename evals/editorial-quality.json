@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "name": "mandatory_driver_migration",
+      "stage": "score",
+      "title": "Meridian Driver 4.0 removes indefinite reconnects",
+      "article": "The Meridian team published Driver 4.0 release notes. Starting with 4.0, the driver stops reconnecting after five attempts and returns an error. Services that rely on indefinite reconnects must handle the new error before upgrading. Existing connection strings still work. The maintainers published a migration guide with Python examples.",
+      "expected_selected": true,
+      "rationale": "Concrete behavior change with a migration action for application teams."
+    },
+    {
+      "name": "scoped_security_fix",
+      "stage": "score",
+      "title": "HarborWeb 2.4.3 addresses a high-severity authentication issue",
+      "article": "The HarborWeb security team's advisory HW-2026-04 identifies a high-severity authentication issue during session renewal in versions 2.4.0 to 2.4.2. The team recommends affected operators upgrade to 2.4.3. The advisory does not report exploitation in the wild.",
+      "expected_selected": true,
+      "rationale": "A maintainer advisory identifies affected and fixed versions and gives a concrete action."
+    },
+    {
+      "name": "runtime_support_deadline",
+      "stage": "score",
+      "title": "Northline CI to remove the Python 3.10 runner in January",
+      "article": "The Northline CI changelog says hosted runners will remove their preinstalled Python 3.10 on January 15. Jobs already pinning a supported runtime are unaffected. The changelog recommends that projects relying on the default runner set an explicit Python version before the change.",
+      "expected_selected": true,
+      "rationale": "A dated compatibility change gives maintainers an actionable migration step."
+    },
+    {
+      "name": "sale_roundup",
+      "stage": "score",
+      "title": "Five discounted laptop stands and desk lamps",
+      "article": "The Desk Edit newsletter lists retailer discounts on laptop stands and lamps. The products were released last year. Prices change Friday, and stores may limit coupon codes. No software changes or new products are announced.",
+      "expected_selected": false,
+      "rationale": "Shopping logistics offer no engineering news."
+    },
+    {
+      "name": "cosmetic_release",
+      "stage": "score",
+      "title": "TraceHarbor 9.0 ships a new logo and splash screen",
+      "article": "TraceHarbor's official changelog says 9.0 replaces the logo and splash screen. It explicitly lists no changes to the API, processing behavior, configuration, or supported versions. The project invites users to download the new artwork.",
+      "expected_selected": false,
+      "rationale": "A numbered official release can still lack practical engineering impact."
+    },
+    {
+      "name": "unconfirmed_product_rumor",
+      "stage": "score",
+      "title": "An anonymous post claims a cloud database upgrade is planned",
+      "article": "An unverified forum comment says a cloud provider might announce a new database tier. The post gives no release date, documentation, or named source. The service's official changelog contains no announcement. A blog repeats the forum comment without independent verification.",
+      "expected_selected": false,
+      "rationale": "Uncorroborated rumor lacks a confirmed change or actionable details."
+    },
+    {
+      "name": "preserve_upgrade_versions",
+      "stage": "draft",
+      "title": "HarborWeb 2.4.3 addresses a high-severity authentication issue",
+      "article": "The HarborWeb security team's advisory HW-2026-04 identifies a high-severity authentication issue during session renewal in versions 2.4.0 to 2.4.2. The team recommends affected operators upgrade to 2.4.3. The advisory does not report exploitation in the wild.",
+      "required_text": ["2.4.2", "2.4.3"],
+      "rationale": "Mentions the affected upper bound and fixed version. Read manually for implied exploitation claims."
+    },
+    {
+      "name": "preserve_migration_deadline",
+      "stage": "draft",
+      "title": "Northline CI to remove the Python 3.10 runner in January",
+      "article": "The Northline CI changelog says hosted runners will remove their preinstalled Python 3.10 on January 15. Jobs already pinning a supported runtime are unaffected. The changelog recommends setting an explicit Python version before the change.",
+      "required_text": ["3.10", "january 15"],
+      "rationale": "Retains the runtime and date. Read manually for scope and planned versus completed status."
+    },
+    {
+      "name": "review_silence_as_global_absence",
+      "stage": "review",
+      "title": "HarborWeb releases patch 2.4.3",
+      "article": "The HarborWeb security team released 2.4.3 and recommends affected operators upgrade. The advisory does not report exploitation in the wild.",
+      "draft": "HarborWeb ships patch 2.4.3. There have been no reports of exploitation in the wild.",
+      "expected_supported": false,
+      "rationale": "One advisory's silence does not establish a global absence of reports."
+    },
+    {
+      "name": "review_faithful_attribution",
+      "stage": "review",
+      "title": "HarborWeb releases patch 2.4.3",
+      "article": "The HarborWeb security team released 2.4.3 and recommends affected operators upgrade. The advisory does not report exploitation in the wild.",
+      "draft": "HarborWeb released 2.4.3 and urges affected operators to upgrade. Its advisory mentions no exploitation in the wild.",
+      "expected_supported": true,
+      "rationale": "Faithful paraphrase keeps the statement limited to what the advisory says."
+    },
+    {
+      "name": "review_planned_as_shipped",
+      "stage": "review",
+      "title": "Fjord SDK targets January for a new retry API",
+      "article": "The Fjord SDK team plans to ship the new retry API in January if compatibility tests pass. The current release does not include it.",
+      "draft": "Fjord SDK has shipped the new retry API. Compatibility tests passed.",
+      "expected_supported": false,
+      "rationale": "A conditional plan became a completed release and added an unsupported test result."
+    },
+    {
+      "name": "review_faithful_quantity",
+      "stage": "review",
+      "title": "Meridian Driver 4.0 adds a reconnect cap",
+      "article": "Driver 4.0 makes at most five reconnect attempts and then returns an error. Connection strings still work.",
+      "draft": "Meridian Driver 4.0 caps retries at five reconnect attempts before returning an error. Existing connection strings still work.",
+      "expected_supported": true,
+      "rationale": "Correct conversion of 'at most five' with the error and compatibility details intact."
+    }
+  ]
+}

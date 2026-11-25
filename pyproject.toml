@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telegram-ai-newsroom"
+version = "0.1.0"
+description = "A review-first AI newsroom for turning trusted feeds into Telegram posts."
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = "MIT"
+authors = [
+  { name = "Artem Yuditskiy" },
+]
+dependencies = [
+  "aiohttp>=3.12,<4",
+  "aiosqlite>=0.20,<1",
+  "alembic>=1.14,<2",
+  "apscheduler>=3.11.3,<4",
+  "argon2-cffi>=23,<26",
+  "fastapi>=0.115,<1",
+  "feedparser>=6,<7",
+  "httpx>=0.28,<1",
+  "jinja2>=3.1,<4",
+  "pillow>=13,<14",
+  "pydantic>=2,<3",
+  "python-telegram-bot>=22.8,<23",
+  "sqlalchemy[asyncio]>=2.0,<2.1",
+  "trafilatura>=2,<3",
+  "typer>=0.16,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[project.scripts]
+telegram-ai-newsroom = "telegram_ai_newsroom.cli.main:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15,<2",
+  "pip-audit>=2.9,<3",
+  "pre-commit>=4,<5",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/telegram_ai_newsroom"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "--cov=telegram_ai_newsroom",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov-fail-under=90",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["telegram_ai_newsroom"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

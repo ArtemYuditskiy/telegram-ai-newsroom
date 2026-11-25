@@ -1,0 +1,36 @@
+"""Storage contract for editorial use cases."""
+
+from contextlib import AbstractAsyncContextManager
+from datetime import datetime
+from typing import Protocol
+from uuid import UUID
+
+from telegram_ai_newsroom.domain.workflow import (
+    Candidate,
+    CandidateState,
+    DraftRevision,
+    DraftState,
+    Publication,
+    PublicationState,
+)
+
+
+class EditorialTransaction(Protocol):
+    async def discover(self, id: UUID) -> Candidate: ...
+    async def candidate(self, id: UUID) -> Candidate: ...
+    async def advance_candidate(self, id: UUID, target: CandidateState) -> Candidate: ...
+    async def create_draft(self, id: UUID, candidate_id: UUID, text: str) -> DraftRevision: ...
+    async def draft(self, id: UUID) -> DraftRevision: ...
+    async def review(self, id: UUID, target: DraftState) -> DraftRevision: ...
+    async def schedule(self, id: UUID, draft_id: UUID, due_at: datetime) -> Publication: ...
+    async def start_attempt(self, publication_id: UUID, attempt_id: UUID) -> Publication: ...
+    async def finish_attempt(
+        self, attempt_id: UUID, outcome: PublicationState, retry_at: datetime | None = None
+    ) -> Publication: ...
+    async def reconcile_publication(
+        self, id: UUID, outcome: PublicationState, retry_at: datetime | None = None
+    ) -> Publication: ...
+
+
+class EditorialStore(Protocol):
+    def transaction(self) -> AbstractAsyncContextManager[EditorialTransaction]: ...

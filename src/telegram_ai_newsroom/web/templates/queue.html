@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ t('Editorial queue') }} · Newsroom{% endblock %}
+{% block content %}
+<div class="page-heading">
+  {% if demo %}<span class="tag">{{ t('Local demo') }}</span>{% endif %}
+  <h1>{{ t('Editorial queue') }}</h1>
+  <p>{{ t('Review source material, refine drafts and approve posts for Telegram.') }}</p>
+</div>
+{% include "queue_items.html" %}
+{% endblock %}
