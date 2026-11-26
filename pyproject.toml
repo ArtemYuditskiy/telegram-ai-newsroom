@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "telegram-ai-newsroom"
-version = "0.1.0"
+version = "0.1.1"
 description = "A review-first AI newsroom for turning trusted feeds into Telegram posts."
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
