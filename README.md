@@ -145,6 +145,10 @@ against the same database:
 uv run --env-file .env telegram-ai-newsroom worker run
 ```
 
+Start the editor with the same chat ID. It records the channel on each new
+schedule. For existing schedules without a destination, confirm the channel
+in the editor before the worker can pick them up.
+
 The worker records the Telegram message ID after confirmation. If Telegram
 could have accepted a request before the connection dropped, the delivery is
 marked `uncertain`. Compare it with the test channel before resolving it:

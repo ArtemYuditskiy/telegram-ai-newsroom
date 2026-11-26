@@ -60,7 +60,7 @@ def database(tmp_path: Path) -> Path:
     return path
 
 
-async def schedule(store: WorkflowStore, when: datetime) -> UUID:
+async def schedule(store: WorkflowStore, when: datetime, destination: str | None = "fake") -> UUID:
     async with store.transaction() as tx:
         candidate = await tx.discover(uuid4())
         for state in (
@@ -72,7 +72,7 @@ async def schedule(store: WorkflowStore, when: datetime) -> UUID:
             await tx.advance_candidate(candidate.id, state)
         draft = await tx.create_draft(uuid4(), candidate.id, "Headline\n\nApproved body")
         await tx.review(draft.id, DraftState.APPROVED)
-        return (await tx.schedule(uuid4(), draft.id, when)).id
+        return (await tx.schedule(uuid4(), draft.id, when, destination=destination)).id
 
 
 def test_schedule_changes_and_competing_claim(database: Path) -> None:
@@ -100,8 +100,8 @@ def test_schedule_changes_and_competing_claim(database: Path) -> None:
             assert await delivery.claim("fake") is None
 
             outcomes = await asyncio.gather(
-                editor.schedule(candidate, draft, clock.now()),
-                EditorStore(peer).schedule(candidate, draft, clock.now()),
+                editor.schedule(candidate, draft, clock.now(), "fake"),
+                EditorStore(peer).schedule(candidate, draft, clock.now(), "fake"),
                 return_exceptions=True,
             )
             assert outcomes.count(None) == 1
@@ -158,6 +158,31 @@ def test_schedule_migration_reports_legacy_conflicts(tmp_path: Path) -> None:
         assert rows == [(candidate,), (candidate,)]
 
 
+def test_legacy_destination_requires_confirmation(database: Path) -> None:
+    async def exercise() -> None:
+        engine = open_database(database)
+        try:
+            clock = FixedClock()
+            store = DeliveryStore(engine, clock)
+            identity = await schedule(WorkflowStore(engine, clock), clock.now(), None)
+            async with engine.connect() as db:
+                candidate = await db.scalar(select(publications.c.candidate_id))
+            assert isinstance(candidate, UUID)
+            assert await store.claim("-10001") is None
+            editor = EditorStore(engine)
+            await editor.change_schedule(candidate, identity, None, bind_destination="-10001")
+            with pytest.raises(InvalidTransition, match="already has a destination"):
+                await editor.change_schedule(candidate, identity, None, bind_destination="-10002")
+            assert await store.claim("-10002") is None
+            worker = Worker(store, FakePublisher(), "-10001")
+            assert await worker.tick() == identity
+            assert await worker.tick() is None
+        finally:
+            await engine.dispose()
+
+    asyncio.run(exercise())
+
+
 def test_concurrent_claim_recovery_and_reconciliation(database: Path) -> None:
     async def exercise() -> None:
         engine = open_database(database)
@@ -165,7 +190,7 @@ def test_concurrent_claim_recovery_and_reconciliation(database: Path) -> None:
         clock = FixedClock()
         try:
             initial = clock.now()
-            identity = await schedule(WorkflowStore(engine, clock), initial)
+            identity = await schedule(WorkflowStore(engine, clock), initial, "-10001")
             later = await schedule(WorkflowStore(engine, clock), initial + timedelta(hours=1))
             store = DeliveryStore(engine, clock)
             another = DeliveryStore(peer, clock)
@@ -215,10 +240,11 @@ def test_retry_wait_and_attempt_cap(database: Path, monkeypatch: pytest.MonkeyPa
         clock = FixedClock()
         engine = open_database(database)
         try:
-            identity = await schedule(WorkflowStore(engine, clock), clock.now())
+            identity = await schedule(WorkflowStore(engine, clock), clock.now(), "-10001")
             later = await schedule(
                 WorkflowStore(engine, clock),
                 clock.now() + timedelta(seconds=MAX_ATTEMPTS * 300 - 1),
+                "-10001",
             )
             store = DeliveryStore(engine, clock)
             worker = Worker(store, RateLimited(), "-10001")
@@ -429,9 +455,9 @@ def test_deadline_moves_job_to_uncertain(database: Path, monkeypatch: pytest.Mon
         try:
             store = DeliveryStore(engine, clock)
             identity = await schedule(WorkflowStore(engine, clock), clock.now())
-            worker = Worker(store, SlowPublisher(), "test")
+            worker = Worker(store, SlowPublisher(), "fake")
             assert await worker.tick() == identity
-            assert await store.uncertain() == [(identity, "test")]
+            assert await store.uncertain() == [(identity, "fake")]
             assert await worker.tick() is None
         finally:
             await engine.dispose()

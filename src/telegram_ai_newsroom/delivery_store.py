@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from telegram_ai_newsroom.domain.clock import Clock, utc_timestamp
@@ -64,10 +64,7 @@ class DeliveryStore:
                         publications.c.due_at <= now,
                         publications.c.cancelled_at.is_(None),
                         drafts.c.state == DraftState.APPROVED,
-                        or_(
-                            publications.c.destination.is_(None),
-                            publications.c.destination == destination,
-                        ),
+                        publications.c.destination == destination,
                     )
                     .order_by(publications.c.due_at, publications.c.id)
                     .limit(1)
@@ -77,11 +74,6 @@ class DeliveryStore:
                 return None
             attempt_id = uuid4()
             await WorkflowTransaction(db, self.clock).start_attempt(row.id, attempt_id)
-            await db.execute(
-                publications.update()
-                .where(publications.c.id == row.id)
-                .values(destination=destination)
-            )
             number = await db.scalar(
                 select(func.count()).where(attempts.c.publication_id == row.id)
             )

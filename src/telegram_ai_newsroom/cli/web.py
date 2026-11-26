@@ -132,6 +132,7 @@ def serve(
     else:
         db = db or Path("newsroom.db")
         admin_hash = os.environ.get("NEWSROOM_ADMIN_HASH", "")
+    destination = os.environ.get("NEWSROOM_TELEGRAM_CHAT_ID", "")
     try:
         app = create_app(
             db,
@@ -140,6 +141,7 @@ def serve(
             timezone=timezone,
             config=config,
             demo=demo,
+            destination=destination or None,
         )
     except (ValueError, InvalidHashError, ZoneInfoNotFoundError) as exc:
         typer.echo(f"Invalid admin hash or time zone: {exc}", err=True)

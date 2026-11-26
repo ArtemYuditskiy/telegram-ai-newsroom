@@ -76,6 +76,7 @@ def test_editor_flow(database: Path) -> None:
             database,
             HASHER.hash(PASSWORD),
             timezone="Europe/Minsk",
+            demo=True,
             config=EditorialConfig(score=profile, draft=profile, review=profile),
         ),
         base_url="https://testserver",
@@ -134,7 +135,8 @@ def test_editor_flow(database: Path) -> None:
         )
         due = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M")
         scheduled = client.post(
-            schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
+            schedule,
+            data={"csrf": token, "due": due, "timezone": "Europe/Minsk", "destination": "fake"},
         )
         assert "UTC</time> · scheduled" in scheduled.text
         cancel = action_path(scheduled.text, "cancel")
@@ -157,12 +159,14 @@ def test_editor_flow(database: Path) -> None:
             == 404
         )
         scheduled = client.post(
-            schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
+            schedule,
+            data={"csrf": token, "due": due, "timezone": "Europe/Minsk", "destination": "fake"},
         )
         assert "UTC</time> · scheduled" in scheduled.text
         assert (
             client.post(
-                schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
+                schedule,
+                data={"csrf": token, "due": due, "timezone": "Europe/Minsk", "destination": "fake"},
             ).status_code
             == 409
         )
@@ -223,6 +227,40 @@ def test_editor_flow(database: Path) -> None:
             await engine.dispose()
 
     asyncio.run(verify())
+
+
+def test_editor_confirms_destination_for_existing_schedule(database: Path) -> None:
+    async def remove_destination() -> None:
+        engine = open_database(database)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(publications.update().values(destination=None))
+        finally:
+            await engine.dispose()
+
+    with TestClient(
+        create_app(database, HASHER.hash(PASSWORD), destination="-10001"),
+        base_url="https://testserver",
+    ) as client:
+        token = sign_in(client)
+        link = candidate_link(
+            client.get("/?state=review").text, "Harbor Driver 4.0 changes reconnect behavior"
+        )
+        approved = client.post(action_path(client.get(link).text, "approve"), data={"csrf": token})
+        schedule = action_path(approved.text, "schedule")
+        due = (datetime.now(UTC) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+        data = {"csrf": token, "due": due, "timezone": "UTC", "destination": "-10002"}
+        assert client.post(schedule, data=data).status_code == 409
+        data["destination"] = "-10001"
+        assert client.post(schedule, data=data).status_code == 200
+        asyncio.run(remove_destination())
+        detail = client.get(link)
+        assert "Destination not confirmed" in detail.text
+        bind = action_path(detail.text, "bind")
+        assert client.post(bind, data={"csrf": token, "destination": "-10002"}).status_code == 409
+        fixed = client.post(bind, data={"csrf": token, "destination": "-10001"})
+        assert fixed.status_code == 200 and "Telegram channel -10001" in fixed.text
+        assert "Destination not confirmed" not in fixed.text
 
 
 def test_source_management(database: Path, monkeypatch: pytest.MonkeyPatch) -> None:

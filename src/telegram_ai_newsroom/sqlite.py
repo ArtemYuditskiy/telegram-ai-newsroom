@@ -224,7 +224,9 @@ class WorkflowTransaction:
             raise InvalidTransition("Draft state changed concurrently")
         return reviewed
 
-    async def schedule(self, id: UUID, draft_id: UUID, due_at: datetime) -> Publication:
+    async def schedule(
+        self, id: UUID, draft_id: UUID, due_at: datetime, *, destination: str | None = None
+    ) -> Publication:
         draft = await self.draft(draft_id)
         publication = Publication.schedule(id, draft)
         if await self._session.scalar(
@@ -238,6 +240,7 @@ class WorkflowTransaction:
                 id=publication.id,
                 draft_revision_id=draft_id,
                 candidate_id=draft.candidate_id,
+                destination=destination,
                 state=publication.state,
                 due_at=utc_timestamp(due_at),
             )

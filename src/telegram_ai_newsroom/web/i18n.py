@@ -133,6 +133,16 @@ RUSSIAN = {
     "Manage publication": "Управление публикацией",
     "Reschedule": "Перенести",
     "Cancel publication": "Отменить публикацию",
+    "Telegram channel": "Канал Telegram",
+    "Destination not confirmed": "Канал не подтверждён",
+    "Confirm destination": "Подтвердить канал",
+    "Configure the Telegram channel before scheduling": (
+        "Настройте канал Telegram перед планированием"
+    ),
+    "The configured channel changed. Reload the page and try again.": (
+        "Канал в настройках изменился. Обновите страницу и попробуйте снова."
+    ),
+    "This publication already has a destination": "Для публикации уже выбран канал",
     "Publication not found": "Публикация не найдена",
     "This candidate already has an active publication": (
         "У этой новости уже есть активная публикация"

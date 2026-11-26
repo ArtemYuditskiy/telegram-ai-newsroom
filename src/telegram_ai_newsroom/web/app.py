@@ -103,8 +103,15 @@ def create_app(
     timezone: str = "UTC",
     config: EditorialConfig | None = None,
     demo: bool = False,
+    destination: str | None = None,
 ) -> FastAPI:
     ZoneInfo(timezone)
+    if demo:
+        destination = "fake"
+    elif destination is not None:
+        if int(destination) >= 0:
+            raise ValueError("A negative numeric channel ID is required")
+        destination = str(int(destination))
     engine = open_database(db_path)
     store = EditorStore(engine)
     auth = AdminAuth(store, admin_hash)
@@ -332,6 +339,7 @@ def create_app(
             section="queue",
             **item,
             timezone=timezone,
+            destination=destination,
             has_models=config is not None,
             error=error,
             values=values or {},
@@ -360,7 +368,7 @@ def create_app(
     @app.post("/candidates/{identity}/revisions/{revision}/{action}")
     async def revise(request: Request, identity: UUID, revision: UUID, action: str) -> Response:
         csrf, data = await authorized_form(request)
-        destination = f"/candidates/{identity}?revision={revision}"
+        redirect_to = f"/candidates/{identity}?revision={revision}"
         try:
             if action in {"approve", "reject"}:
                 await store.decide(
@@ -373,10 +381,16 @@ def create_app(
                 if "\n" in post.headline or "\r" in post.headline:
                     raise ValueError("Headline must fit on one line.")
                 new_id = await store.revise(identity, revision, post, "edited")
-                destination = f"/candidates/{identity}?revision={new_id}"
+                redirect_to = f"/candidates/{identity}?revision={new_id}"
             elif action == "schedule":
                 due = local_due_at(data.get("due", ""), data.get("timezone", ""), store.clock.now())
-                await store.schedule(identity, revision, due)
+                if destination is None:
+                    raise ValueError("Configure the Telegram channel before scheduling")
+                if data.get("destination") != destination:
+                    raise ValueError(
+                        "The configured channel changed. Reload the page and try again."
+                    )
+                await store.schedule(identity, revision, due, destination)
             elif action == "regenerate":
                 if config is None:
                     raise ValueError("A model profile is required to regenerate a draft.")
@@ -401,7 +415,7 @@ def create_app(
                         else (await pipeline.review_draft(title, body, post.text))
                     )
                 new_id = await store.revise(identity, revision, post, "regenerated", review, run_id)
-                destination = f"/candidates/{identity}?revision={new_id}"
+                redirect_to = f"/candidates/{identity}?revision={new_id}"
             else:
                 raise HTTPException(404, "Unknown draft action")
         except (LookupError, NoResultFound) as exc:
@@ -425,7 +439,7 @@ def create_app(
             return await detail(
                 request, identity, revision, csrf, error=str(exc), status=409, values=data
             )
-        return set_redirect(destination, request)
+        return set_redirect(redirect_to, request)
 
     @app.get("/sources")
     async def sources_page(request: Request) -> Response:
@@ -440,6 +454,15 @@ def create_app(
     ) -> Response:
         csrf, data = await authorized_form(request)
         try:
+            if action == "bind" and destination is not None:
+                if data.get("destination") != destination:
+                    raise ValueError(
+                        "The configured channel changed. Reload the page and try again."
+                    )
+                await store.change_schedule(
+                    identity, publication, None, bind_destination=destination
+                )
+                return set_redirect(f"/candidates/{identity}", request)
             if action == "cancel":
                 due = None
             elif action == "reschedule":

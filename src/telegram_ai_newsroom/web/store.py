@@ -252,16 +252,23 @@ class EditorStore:
             )
             return created.id
 
-    async def schedule(self, candidate_id: UUID, revision: UUID, due: datetime) -> None:
+    async def schedule(
+        self, candidate_id: UUID, revision: UUID, due: datetime, destination: str
+    ) -> None:
         async with self.schedule_db.begin() as db:
             tx = WorkflowTransaction(db, self.clock)
             draft = await tx.draft(revision)
             if draft.candidate_id != candidate_id:
                 raise LookupError("Revision not found")
-            await tx.schedule(uuid4(), revision, due)
+            await tx.schedule(uuid4(), revision, due, destination=destination)
 
     async def change_schedule(
-        self, candidate_id: UUID, publication_id: UUID, due: datetime | None
+        self,
+        candidate_id: UUID,
+        publication_id: UUID,
+        due: datetime | None,
+        *,
+        bind_destination: str | None = None,
     ) -> None:
         async with self.schedule_db.begin() as db:
             row = (
@@ -278,7 +285,11 @@ class EditorStore:
                 raise InvalidTransition("The worker has started sending this publication")
             if row.cancelled_at or row.state not in PENDING_PUBLICATION_STATES:
                 raise InvalidTransition("This publication can no longer be changed")
-            if due is None:
+            if bind_destination is not None:
+                if row.destination is not None:
+                    raise InvalidTransition("This publication already has a destination")
+                changes = {"destination": bind_destination}
+            elif due is None:
                 changes = {"cancelled_at": utc_timestamp(self.clock.now())}
             else:
                 timestamp = utc_timestamp(due)
