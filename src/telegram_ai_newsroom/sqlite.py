@@ -62,6 +62,8 @@ publications = Table(
     metadata,
     Column("id", Uuid, primary_key=True),
     Column("draft_revision_id", Uuid, ForeignKey("draft_revisions.id"), nullable=False, index=True),
+    Column("candidate_id", Uuid, ForeignKey("candidates.id")),
+    Column("cancelled_at", Text),
     Column("due_at", Text, nullable=False),
     Column("destination", Text),
     Column("message_id", Integer),
@@ -81,6 +83,20 @@ attempts = Table(
     Column("outcome", Enum(PublicationState, native_enum=False, create_constraint=True)),
 )
 Index("ix_publications_state_due_at", publications.c.state, publications.c.due_at)
+PENDING_PUBLICATION_STATES = (PublicationState.SCHEDULED, PublicationState.RETRY_WAIT)
+ACTIVE_PUBLICATION = publications.c.cancelled_at.is_(None) & publications.c.state.in_(
+    (
+        *PENDING_PUBLICATION_STATES,
+        PublicationState.PUBLISHING,
+        PublicationState.UNCERTAIN,
+    )
+)
+Index(
+    "uq_publications_active_candidate",
+    publications.c.candidate_id,
+    unique=True,
+    sqlite_where=ACTIVE_PUBLICATION,
+)
 Index(
     "uq_publication_open_attempt",
     attempts.c.publication_id,
@@ -209,11 +225,19 @@ class WorkflowTransaction:
         return reviewed
 
     async def schedule(self, id: UUID, draft_id: UUID, due_at: datetime) -> Publication:
-        publication = Publication.schedule(id, await self.draft(draft_id))
+        draft = await self.draft(draft_id)
+        publication = Publication.schedule(id, draft)
+        if await self._session.scalar(
+            select(publications.c.id).where(
+                publications.c.candidate_id == draft.candidate_id, ACTIVE_PUBLICATION
+            )
+        ):
+            raise InvalidTransition("This candidate already has an active publication")
         await self._session.execute(
             publications.insert().values(
                 id=publication.id,
                 draft_revision_id=draft_id,
+                candidate_id=draft.candidate_id,
                 state=publication.state,
                 due_at=utc_timestamp(due_at),
             )
@@ -235,7 +259,11 @@ class WorkflowTransaction:
     ) -> None:
         result = await self._session.execute(
             publications.update()
-            .where(publications.c.id == current.id, publications.c.state == current.state)
+            .where(
+                publications.c.id == current.id,
+                publications.c.state == current.state,
+                publications.c.cancelled_at.is_(None),
+            )
             .values(state=updated.state, due_at=due_at, message_id=message_id)
             .returning(publications.c.id)
         )

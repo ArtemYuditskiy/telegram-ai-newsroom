@@ -64,7 +64,10 @@ def status(db: Path = Path("newsroom.db")) -> None:
                 "ORDER BY backend, model, operation, outcome"
             )
             costs = conn.execute("SELECT cost_usd FROM llm_calls WHERE cost_usd IS NOT NULL")
-            deliveries = conn.execute("SELECT state, count(*) FROM publications GROUP BY state")
+            deliveries = conn.execute(
+                "SELECT CASE WHEN cancelled_at IS NULL THEN state ELSE 'CANCELLED' END "
+                "AS effective_state, count(*) FROM publications GROUP BY effective_state"
+            )
             report = {
                 "database": "ok",
                 "feeds": [dict(row) for row in feeds],

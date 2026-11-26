@@ -9,11 +9,17 @@ from sqlalchemy import Column, ForeignKey, Table, Text, Uuid, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from telegram_ai_newsroom.domain.clock import SystemClock, utc_timestamp
-from telegram_ai_newsroom.domain.workflow import CandidateState, DraftState, InvalidTransition
+from telegram_ai_newsroom.domain.workflow import (
+    CandidateState,
+    DraftState,
+    InvalidTransition,
+    PublicationState,
+)
 from telegram_ai_newsroom.editorial import PostText, Review
 from telegram_ai_newsroom.editorial_store import calls, results
 from telegram_ai_newsroom.ingestion_store import articles, sources
 from telegram_ai_newsroom.sqlite import (
+    PENDING_PUBLICATION_STATES,
     WorkflowTransaction,
     candidates,
     drafts,
@@ -43,6 +49,7 @@ revision_context = Table(
 class EditorStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self.db = async_sessionmaker(engine)
+        self.schedule_db = async_sessionmaker(engine.execution_options(claim_write=True))
         self.clock = SystemClock()
 
     async def queue(
@@ -181,12 +188,14 @@ class EditorStore:
                     await db.execute(
                         select(
                             publications.c.id,
+                            publications.c.draft_revision_id,
                             publications.c.due_at,
                             publications.c.state,
+                            publications.c.cancelled_at,
                             publications.c.destination,
                             publications.c.message_id,
                         )
-                        .where(publications.c.draft_revision_id == selected["id"])
+                        .where(publications.c.candidate_id == identity)
                         .order_by(publications.c.due_at)
                     )
                 )
@@ -244,22 +253,41 @@ class EditorStore:
             return created.id
 
     async def schedule(self, candidate_id: UUID, revision: UUID, due: datetime) -> None:
-        async with self.db.begin() as db:
+        async with self.schedule_db.begin() as db:
             tx = WorkflowTransaction(db, self.clock)
             draft = await tx.draft(revision)
             if draft.candidate_id != candidate_id:
                 raise LookupError("Revision not found")
-            scheduled = await db.scalar(
-                select(publications.c.id)
-                .where(
-                    publications.c.draft_revision_id == revision,
-                    publications.c.due_at == utc_timestamp(due),
-                )
-                .limit(1)
-            )
-            if scheduled is not None:
-                raise InvalidTransition("This revision is already scheduled for that time")
             await tx.schedule(uuid4(), revision, due)
+
+    async def change_schedule(
+        self, candidate_id: UUID, publication_id: UUID, due: datetime | None
+    ) -> None:
+        async with self.schedule_db.begin() as db:
+            row = (
+                await db.execute(
+                    select(publications).where(
+                        publications.c.id == publication_id,
+                        publications.c.candidate_id == candidate_id,
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                raise LookupError("Publication not found")
+            if row.state == PublicationState.PUBLISHING:
+                raise InvalidTransition("The worker has started sending this publication")
+            if row.cancelled_at or row.state not in PENDING_PUBLICATION_STATES:
+                raise InvalidTransition("This publication can no longer be changed")
+            if due is None:
+                changes = {"cancelled_at": utc_timestamp(self.clock.now())}
+            else:
+                timestamp = utc_timestamp(due)
+                if row.state == PublicationState.RETRY_WAIT:
+                    timestamp = max(timestamp, row.due_at)
+                changes = {"due_at": timestamp}
+            await db.execute(
+                publications.update().where(publications.c.id == publication_id).values(**changes)
+            )
 
     async def sources(self) -> list[dict[str, Any]]:
         async with self.db() as db:

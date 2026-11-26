@@ -137,6 +137,29 @@ def test_editor_flow(database: Path) -> None:
             schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
         )
         assert "UTC</time> · scheduled" in scheduled.text
+        cancel = action_path(scheduled.text, "cancel")
+        move = action_path(scheduled.text, "reschedule")
+        assert client.post(cancel, data={"csrf": "wrong"}).status_code == 403
+        assert (
+            client.post(move, data={"csrf": token, "due": "bad", "timezone": "UTC"}).status_code
+            == 409
+        )
+        moved = client.post(move, data={"csrf": token, "due": due, "timezone": "America/New_York"})
+        assert moved.status_code == 200 and "UTC</time> · scheduled" in moved.text
+        cancelled = client.post(cancel, data={"csrf": token})
+        assert cancelled.status_code == 200 and "UTC</time> · cancelled" in cancelled.text
+        assert client.post(cancel, data={"csrf": token}).status_code == 409
+        assert client.post(move.rsplit("/", 1)[0] + "/bad", data={"csrf": token}).status_code == 404
+        assert (
+            client.post(
+                move.rsplit("/", 2)[0] + f"/{uuid4()}/cancel", data={"csrf": token}
+            ).status_code
+            == 404
+        )
+        scheduled = client.post(
+            schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
+        )
+        assert "UTC</time> · scheduled" in scheduled.text
         assert (
             client.post(
                 schedule, data={"csrf": token, "due": due, "timezone": "Europe/Minsk"}
@@ -187,9 +210,9 @@ def test_editor_flow(database: Path) -> None:
             async with engine.connect() as conn:
                 rows = (
                     await conn.execute(
-                        select(drafts.c.text, drafts.c.state, publications.c.due_at).join(
-                            publications, drafts.c.id == publications.c.draft_revision_id
-                        )
+                        select(drafts.c.text, drafts.c.state, publications.c.due_at)
+                        .join(publications, drafts.c.id == publications.c.draft_revision_id)
+                        .where(publications.c.cancelled_at.is_(None))
                     )
                 ).all()
                 assert len(rows) == 1

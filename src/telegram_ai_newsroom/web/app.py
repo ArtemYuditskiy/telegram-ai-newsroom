@@ -434,6 +434,25 @@ def create_app(
             request, "sources.html", csrf=csrf, section="sources", rows=await store.sources()
         )
 
+    @app.post("/candidates/{identity}/publications/{publication}/{action}")
+    async def change_schedule(
+        request: Request, identity: UUID, publication: UUID, action: str
+    ) -> Response:
+        csrf, data = await authorized_form(request)
+        try:
+            if action == "cancel":
+                due = None
+            elif action == "reschedule":
+                due = local_due_at(data.get("due", ""), data.get("timezone", ""), store.clock.now())
+            else:
+                raise HTTPException(404)
+            await store.change_schedule(identity, publication, due)
+        except LookupError as exc:
+            raise HTTPException(404, "Publication not found") from exc
+        except ValueError as exc:
+            return await detail(request, identity, None, csrf, error=str(exc), status=409)
+        return set_redirect(f"/candidates/{identity}", request)
+
     @app.post("/sources/{action}")
     async def update_sources(request: Request, action: str) -> Response:
         csrf, data = await authorized_form(request)

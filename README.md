@@ -117,6 +117,13 @@ uv run --env-file .env telegram-ai-newsroom web serve --local-http \
 
 For HTTPS behind a reverse proxy, omit `--local-http` to use Secure session cookies.
 The editor stores scheduled publication times in UTC. Delivery requires a separate worker.
+Each candidate can have one active publication. Reschedule or cancel it in the candidate
+card before delivery starts. To publish a different revision, cancel the old schedule
+and schedule the new revision. An uncertain delivery requires reconciliation first.
+
+Before upgrading from 0.1.0, back up the database. If the migration reports multiple
+active publication IDs for a candidate, verify their delivery outcomes and resolve the
+conflict in the old database before retrying the migration.
 
 ## Deliver scheduled posts
 

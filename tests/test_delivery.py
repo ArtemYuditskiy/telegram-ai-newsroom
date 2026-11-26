@@ -2,7 +2,9 @@
 
 import asyncio
 import signal
+import sqlite3
 from collections.abc import Callable
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -21,7 +23,12 @@ from typer.testing import CliRunner
 from telegram_ai_newsroom.cli.main import app
 from telegram_ai_newsroom.delivery_store import Delivery, DeliveryStore
 from telegram_ai_newsroom.domain.clock import SystemClock
-from telegram_ai_newsroom.domain.workflow import CandidateState, DraftState, PublicationState
+from telegram_ai_newsroom.domain.workflow import (
+    CandidateState,
+    DraftState,
+    InvalidTransition,
+    PublicationState,
+)
 from telegram_ai_newsroom.feed_http import FeedHttp, FetchError, Response
 from telegram_ai_newsroom.ingestion import Collector, Source
 from telegram_ai_newsroom.publisher import (
@@ -33,6 +40,7 @@ from telegram_ai_newsroom.publisher import (
     valid_photo,
 )
 from telegram_ai_newsroom.sqlite import WorkflowStore, attempts, open_database, publications
+from telegram_ai_newsroom.web.store import EditorStore
 from telegram_ai_newsroom.worker import MAX_ATTEMPTS, RECOVERY_AGE, Worker
 
 
@@ -65,6 +73,89 @@ async def schedule(store: WorkflowStore, when: datetime) -> UUID:
         draft = await tx.create_draft(uuid4(), candidate.id, "Headline\n\nApproved body")
         await tx.review(draft.id, DraftState.APPROVED)
         return (await tx.schedule(uuid4(), draft.id, when)).id
+
+
+def test_schedule_changes_and_competing_claim(database: Path) -> None:
+    async def exercise() -> None:
+        engine = open_database(database)
+        peer = open_database(database)
+        try:
+            clock = FixedClock()
+            editor = EditorStore(engine)
+            delivery = DeliveryStore(peer, clock)
+            first = await schedule(WorkflowStore(engine, clock), clock.now())
+            async with engine.connect() as db:
+                candidate, draft = (
+                    await db.execute(
+                        select(
+                            publications.c.candidate_id,
+                            publications.c.draft_revision_id,
+                        )
+                    )
+                ).one()
+            await editor.change_schedule(candidate, first, clock.now() + timedelta(hours=1))
+            assert await delivery.claim("fake") is None
+            await editor.change_schedule(candidate, first, None)
+            clock.instant += timedelta(hours=2)
+            assert await delivery.claim("fake") is None
+
+            outcomes = await asyncio.gather(
+                editor.schedule(candidate, draft, clock.now()),
+                EditorStore(peer).schedule(candidate, draft, clock.now()),
+                return_exceptions=True,
+            )
+            assert outcomes.count(None) == 1
+            assert sum(isinstance(item, InvalidTransition) for item in outcomes) == 1
+            async with engine.connect() as db:
+                second = (
+                    await db.execute(
+                        select(publications.c.id).where(publications.c.cancelled_at.is_(None))
+                    )
+                ).scalar_one()
+            claim, cancel = await asyncio.gather(
+                delivery.claim("fake"),
+                editor.change_schedule(candidate, second, None),
+                return_exceptions=True,
+            )
+            if claim is None:
+                assert cancel is None
+            else:
+                assert isinstance(claim, Delivery)
+                assert isinstance(cancel, InvalidTransition)
+                assert "started sending" in str(cancel)
+        finally:
+            await peer.dispose()
+            await engine.dispose()
+
+    asyncio.run(exercise())
+
+
+def test_schedule_migration_reports_legacy_conflicts(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.db"
+    config = Config(Path(__file__).resolve().parents[1] / "alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite+aiosqlite:///{path}")
+    command.upgrade(config, "0005_delivery")
+    candidate, draft, first, second = (uuid4().hex for _ in range(4))
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute("INSERT INTO candidates VALUES (?, 'DRAFTED')", (candidate,))
+        db.execute(
+            "INSERT INTO draft_revisions (id, candidate_id, text, state) "
+            "VALUES (?, ?, 'body', 'APPROVED')",
+            (draft, candidate),
+        )
+        db.executemany(
+            "INSERT INTO publications (id, draft_revision_id, due_at, state) "
+            "VALUES (?, ?, '2026-11-20T00:00:00+00:00', 'SCHEDULED')",
+            [(first, draft), (second, draft)],
+        )
+    with pytest.raises(RuntimeError, match=f"conflicts before upgrading: {candidate}"):
+        command.upgrade(config, "head")
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute("UPDATE publications SET state = 'FAILED' WHERE id = ?", (second,))
+    command.upgrade(config, "head")
+    with closing(sqlite3.connect(path)) as db:
+        rows = db.execute("SELECT candidate_id FROM publications").fetchall()
+        assert rows == [(candidate,), (candidate,)]
 
 
 def test_concurrent_claim_recovery_and_reconciliation(database: Path) -> None:

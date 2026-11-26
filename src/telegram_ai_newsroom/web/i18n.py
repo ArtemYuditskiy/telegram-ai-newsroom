@@ -128,6 +128,17 @@ RUSSIAN = {
     "failed": "ошибка",
     "uncertain": "доставка не подтверждена",
     "retry wait": "ожидает повтора",
+    "cancelled": "отменено",
+    "Scheduled revision": "Версия в расписании",
+    "Manage publication": "Управление публикацией",
+    "Reschedule": "Перенести",
+    "Cancel publication": "Отменить публикацию",
+    "Publication not found": "Публикация не найдена",
+    "This candidate already has an active publication": (
+        "У этой новости уже есть активная публикация"
+    ),
+    "The worker has started sending this publication": "Воркер уже начал отправку публикации",
+    "This publication can no longer be changed": "Эту публикацию уже нельзя изменить",
     "Not Found": "Страница не найдена",
     "Method Not Allowed": "Метод запроса не поддерживается",
     "The sign-in form expired. Please try again.": (

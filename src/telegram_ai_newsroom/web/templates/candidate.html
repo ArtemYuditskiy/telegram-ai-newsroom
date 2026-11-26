@@ -57,16 +57,33 @@
           <button type="submit">{{ t('Save revision') }}</button>
         </form>
       </details>
-      {% if draft.state == 'approved' %}
+      {% if draft.state == 'approved' or scheduled %}
       <section class="section">
         <h3>{{ t('Schedule this revision') }}</h3>
         {% for publication in scheduled %}
-        <p class="hint"><time datetime="{{ publication.due_at }}">{{ publication.due_at[:16] | replace('T', ' ') }} UTC</time> · {{ t(publication.state | replace('_', ' ')) }}
+        <p class="hint"><time datetime="{{ publication.due_at }}">{{ publication.due_at[:16] | replace('T', ' ') }} UTC</time> · {{ t('cancelled' if publication.cancelled_at else publication.state | replace('_', ' ')) }}
+          {% if publication.draft_revision_id != draft.id %} · <a href="?revision={{ publication.draft_revision_id }}">{{ t('Scheduled revision') }}</a>{% endif %}
           {% if publication.message_id %} · Telegram #{{ publication.message_id }}{% endif %}
           {% if publication.destination == 'fake' %} · {{ t('Local demo') }}{% endif %}
           {% if publication.state == 'uncertain' %} · {{ publication.id }}{% endif %}
         </p>
+        {% if not publication.cancelled_at and publication.state in ('scheduled', 'retry_wait') %}
+        <details>
+          <summary>{{ t('Manage publication') }}</summary>
+          <form action="/candidates/{{ entry.candidate_id }}/publications/{{ publication.id }}/reschedule" method="post" class="stack">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="hidden" name="timezone" value="{{ timezone }}">
+            <label>{{ t('Local date and time') }} ({{ timezone }}) <input name="due" type="datetime-local" required></label>
+            <button type="submit">{{ t('Reschedule') }}</button>
+          </form>
+          <form action="/candidates/{{ entry.candidate_id }}/publications/{{ publication.id }}/cancel" method="post">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="danger" type="submit">{{ t('Cancel publication') }}</button>
+          </form>
+        </details>
+        {% endif %}
         {% endfor %}
+        {% if draft.state == 'approved' %}
         <form action="/candidates/{{ entry.candidate_id }}/revisions/{{ draft.id }}/schedule" method="post" class="stack">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <label for="due">{{ t('Local date and time') }}</label>
@@ -76,6 +93,7 @@
           <span class="hint" id="zone-help">{{ t('IANA name, for example Europe/Minsk. Stored in UTC.') }}</span>
           <button class="primary" type="submit">{{ t('Schedule publication') }}</button>
         </form>
+        {% endif %}
       </section>
       {% endif %}
     </div>

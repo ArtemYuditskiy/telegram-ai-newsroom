@@ -62,6 +62,7 @@ class DeliveryStore:
                             [PublicationState.SCHEDULED, PublicationState.RETRY_WAIT]
                         ),
                         publications.c.due_at <= now,
+                        publications.c.cancelled_at.is_(None),
                         drafts.c.state == DraftState.APPROVED,
                         or_(
                             publications.c.destination.is_(None),
