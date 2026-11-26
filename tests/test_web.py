@@ -16,13 +16,13 @@ from typer.testing import CliRunner
 from telegram_ai_newsroom.cli.editorial import EditorialConfig
 from telegram_ai_newsroom.cli.main import app as cli
 from telegram_ai_newsroom.cli.web import DEMO_FEED, seed
-from telegram_ai_newsroom.delivery_store import DeliveryStore
-from telegram_ai_newsroom.domain.workflow import DraftState
+from telegram_ai_newsroom.delivery_store import Delivery, DeliveryStore
+from telegram_ai_newsroom.domain.workflow import DraftState, PublicationState
 from telegram_ai_newsroom.feed_http import FetchError
 from telegram_ai_newsroom.ingestion import Article, Collector, Source
 from telegram_ai_newsroom.ingestion_store import IngestionStore
 from telegram_ai_newsroom.llm import ModelProfile
-from telegram_ai_newsroom.publisher import FakePublisher
+from telegram_ai_newsroom.publisher import DeliveryError, FakePublisher
 from telegram_ai_newsroom.sqlite import drafts, open_database, publications
 from telegram_ai_newsroom.web.app import create_app, local_due_at, safe_url
 from telegram_ai_newsroom.web.auth import HASHER, SESSION_COOKIE, validate_admin_hash
@@ -261,6 +261,95 @@ def test_editor_confirms_destination_for_existing_schedule(database: Path) -> No
         fixed = client.post(bind, data={"csrf": token, "destination": "-10001"})
         assert fixed.status_code == 200 and "Telegram channel -10001" in fixed.text
         assert "Destination not confirmed" not in fixed.text
+
+
+@pytest.mark.parametrize(
+    ("state", "code", "english", "russian"),
+    [
+        (
+            PublicationState.RETRY_WAIT,
+            "rate_limited",
+            "Telegram rate limit",
+            "Telegram ограничил частоту запросов",
+        ),
+        (
+            PublicationState.FAILED,
+            "telegram_rejected",
+            "Telegram rejected the message",
+            "Telegram отклонил сообщение",
+        ),
+        (
+            PublicationState.UNCERTAIN,
+            "telegram_response_unknown",
+            "No confirmation from Telegram",
+            "Telegram не подтвердил отправку",
+        ),
+    ],
+)
+def test_delivery_status_in_editor(
+    database: Path,
+    state: PublicationState,
+    code: str,
+    english: str,
+    russian: str,
+) -> None:
+    planned = datetime.now(UTC).replace(second=0, microsecond=0) + timedelta(days=1)
+
+    class AfterDue:
+        def now(self) -> datetime:
+            return planned + timedelta(minutes=5)
+
+    class SimulatedTelegram:
+        async def send(self, job: Delivery) -> int:
+            raise DeliveryError(state, code, 300 if state == PublicationState.RETRY_WAIT else 0)
+
+    async def deliver() -> None:
+        engine = open_database(database)
+        try:
+            worker = Worker(DeliveryStore(engine, AfterDue()), SimulatedTelegram(), "fake")
+            assert await worker.tick() is not None
+        finally:
+            await engine.dispose()
+
+    with TestClient(
+        create_app(database, HASHER.hash(PASSWORD), demo=True),
+        base_url="https://testserver",
+    ) as client:
+        token = sign_in(client)
+        link = candidate_link(
+            client.get("/?state=review").text, "Harbor Driver 4.0 changes reconnect behavior"
+        )
+        approved = client.post(action_path(client.get(link).text, "approve"), data={"csrf": token})
+        schedule = action_path(approved.text, "schedule")
+        due = planned.strftime("%Y-%m-%dT%H:%M")
+        response = client.post(
+            schedule,
+            data={
+                "csrf": token,
+                "due": due,
+                "timezone": "UTC",
+                "destination": "fake",
+            },
+        )
+        assert response.status_code == 200
+        asyncio.run(deliver())
+        page = client.get(link)
+        assert english in page.text
+        assert planned.strftime("%Y-%m-%d %H:%M") in page.text
+        assert russian in client.get(str(page.url.copy_add_param("lang", "ru"))).text
+        if state == PublicationState.RETRY_WAIT:
+            assert "Earliest retry" in page.text
+            assert (planned + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M") in page.text
+            move = action_path(page.text, "reschedule")
+            new_time = (planned + timedelta(minutes=7)).strftime("%Y-%m-%dT%H:%M")
+            moved = client.post(move, data={"csrf": token, "due": new_time, "timezone": "UTC"})
+            assert moved.status_code == 200
+            assert new_time.replace("T", " ") in moved.text
+            assert (planned + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M") in moved.text
+        elif state == PublicationState.UNCERTAIN:
+            assert "Check the channel for this post" in page.text
+        else:
+            assert "Check the delivery reason before scheduling again" in page.text
 
 
 def test_source_management(database: Path, monkeypatch: pytest.MonkeyPatch) -> None:

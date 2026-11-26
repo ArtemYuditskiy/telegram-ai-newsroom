@@ -65,6 +65,8 @@ publications = Table(
     Column("candidate_id", Uuid, ForeignKey("candidates.id")),
     Column("cancelled_at", Text),
     Column("due_at", Text, nullable=False),
+    Column("scheduled_for", Text),
+    Column("retry_not_before", Text),
     Column("destination", Text),
     Column("message_id", Integer),
     Column(
@@ -243,6 +245,7 @@ class WorkflowTransaction:
                 destination=destination,
                 state=publication.state,
                 due_at=utc_timestamp(due_at),
+                scheduled_for=utc_timestamp(due_at),
             )
         )
         return publication
@@ -267,7 +270,12 @@ class WorkflowTransaction:
                 publications.c.state == current.state,
                 publications.c.cancelled_at.is_(None),
             )
-            .values(state=updated.state, due_at=due_at, message_id=message_id)
+            .values(
+                state=updated.state,
+                due_at=due_at,
+                message_id=message_id,
+                retry_not_before=due_at if updated.state == PublicationState.RETRY_WAIT else None,
+            )
             .returning(publications.c.id)
         )
         if result.scalar_one_or_none() is None:

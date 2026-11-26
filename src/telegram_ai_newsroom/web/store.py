@@ -21,6 +21,7 @@ from telegram_ai_newsroom.ingestion_store import articles, sources
 from telegram_ai_newsroom.sqlite import (
     PENDING_PUBLICATION_STATES,
     WorkflowTransaction,
+    attempts,
     candidates,
     drafts,
     metadata,
@@ -190,10 +191,18 @@ class EditorStore:
                             publications.c.id,
                             publications.c.draft_revision_id,
                             publications.c.due_at,
+                            publications.c.scheduled_for,
                             publications.c.state,
                             publications.c.cancelled_at,
                             publications.c.destination,
                             publications.c.message_id,
+                            select(attempts.c.detail)
+                            .where(attempts.c.publication_id == publications.c.id)
+                            .order_by(attempts.c.started_at.desc(), attempts.c.id)
+                            .limit(1)
+                            .correlate(publications)
+                            .scalar_subquery()
+                            .label("last_detail"),
                         )
                         .where(publications.c.candidate_id == identity)
                         .order_by(publications.c.due_at)
@@ -293,9 +302,10 @@ class EditorStore:
                 changes = {"cancelled_at": utc_timestamp(self.clock.now())}
             else:
                 timestamp = utc_timestamp(due)
-                if row.state == PublicationState.RETRY_WAIT:
-                    timestamp = max(timestamp, row.due_at)
-                changes = {"due_at": timestamp}
+                changes = {
+                    "scheduled_for": timestamp,
+                    "due_at": max(timestamp, row.retry_not_before or timestamp),
+                }
             await db.execute(
                 publications.update().where(publications.c.id == publication_id).values(**changes)
             )

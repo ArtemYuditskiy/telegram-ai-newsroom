@@ -61,7 +61,8 @@
       <section class="section">
         <h3>{{ t('Schedule this revision') }}</h3>
         {% for publication in scheduled %}
-        <p class="hint"><time datetime="{{ publication.due_at }}">{{ publication.due_at[:16] | replace('T', ' ') }} UTC</time> · {{ t('cancelled' if publication.cancelled_at else publication.state | replace('_', ' ')) }}
+        <p class="hint">{% if publication.scheduled_for %}{{ t('Scheduled for') }}
+          <time datetime="{{ publication.scheduled_for }}">{{ publication.scheduled_for[:16] | replace('T', ' ') }} UTC</time> · {% endif %}{{ t('cancelled' if publication.cancelled_at else publication.state | replace('_', ' ')) }}
           {% if publication.draft_revision_id != draft.id %} · <a href="?revision={{ publication.draft_revision_id }}">{{ t('Scheduled revision') }}</a>{% endif %}
           {% if publication.message_id %} · Telegram #{{ publication.message_id }}{% endif %}
           {% if publication.destination == 'fake' %} · {{ t('Local demo') }}
@@ -69,6 +70,16 @@
           {% else %} · {{ t('Destination not confirmed') }}{% endif %}
           {% if publication.state == 'uncertain' %} · {{ publication.id }}{% endif %}
         </p>
+        {% if publication.last_detail %}
+        <p>{{ t(delivery_reasons.get(publication.last_detail, 'See the worker log for the delivery reason')) }}</p>
+        {% endif %}
+        {% if not publication.cancelled_at and publication.state == 'retry_wait' %}
+        <p>{{ t('Earliest retry') }} <time datetime="{{ publication.due_at }}">{{ publication.due_at[:16] | replace('T', ' ') }} UTC</time></p>
+        {% elif publication.state == 'uncertain' %}
+        <p>{{ t('Check the channel for this post before requesting another attempt.') }}</p>
+        {% elif publication.state == 'failed' %}
+        <p>{{ t('Check the delivery reason before scheduling again.') }}</p>
+        {% endif %}
         {% if not publication.cancelled_at and publication.state in ('scheduled', 'retry_wait') %}
         {% if not publication.destination and destination %}
         <form action="/candidates/{{ entry.candidate_id }}/publications/{{ publication.id }}/bind" method="post">

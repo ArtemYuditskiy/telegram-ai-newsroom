@@ -128,6 +128,24 @@ RUSSIAN = {
     "failed": "ошибка",
     "uncertain": "доставка не подтверждена",
     "retry wait": "ожидает повтора",
+    "Scheduled for": "Запланировано на",
+    "Earliest retry": "Повтор не раньше",
+    "Telegram rate limit": "Telegram ограничил частоту запросов",
+    "Could not connect to Telegram": "Не удалось подключиться к Telegram",
+    "Telegram rejected the message": "Telegram отклонил сообщение",
+    "No confirmation from Telegram": "Telegram не подтвердил отправку",
+    "Telegram returned no usable message ID": "Telegram не вернул корректный ID сообщения",
+    "The delivery attempt timed out": "Время ожидания отправки истекло",
+    "The worker stopped before recording the result": "Воркер остановился до записи результата",
+    "The message is empty": "Текст сообщения пуст",
+    "The message exceeds the Telegram limit": "Текст сообщения превышает лимит Telegram",
+    "See the worker log for the delivery reason": "Подробности есть в журнале воркера",
+    "Check the channel for this post before requesting another attempt.": (
+        "Проверьте, появился ли пост в канале, прежде чем повторять отправку."
+    ),
+    "Check the delivery reason before scheduling again.": (
+        "Перед повторным планированием проверьте причину сбоя."
+    ),
     "cancelled": "отменено",
     "Scheduled revision": "Версия в расписании",
     "Manage publication": "Управление публикацией",

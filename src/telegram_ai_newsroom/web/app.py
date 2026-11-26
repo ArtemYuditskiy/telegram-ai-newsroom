@@ -61,6 +61,17 @@ FILTERS = {
     "drafted": "Drafted",
     "rejected": "Passed over",
 }
+DELIVERY_REASONS = {
+    "rate_limited": "Telegram rate limit",
+    "connect_failed": "Could not connect to Telegram",
+    "telegram_rejected": "Telegram rejected the message",
+    "telegram_response_unknown": "No confirmation from Telegram",
+    "telegram_receipt_missing": "Telegram returned no usable message ID",
+    "attempt_deadline": "The delivery attempt timed out",
+    "worker_interrupted": "The worker stopped before recording the result",
+    "empty_text": "The message is empty",
+    "message_too_long": "The message exceeds the Telegram limit",
+}
 
 
 def local_due_at(value: str, zone: str, now: datetime) -> datetime:
@@ -130,7 +141,9 @@ def create_app(
     )
     app.mount("/assets", StaticFiles(directory=HERE / "static"), name="assets")
     templates = Jinja2Templates(directory=HERE / "templates")
-    templates.env.globals.update(safe_url=safe_url, filters=FILTERS)
+    templates.env.globals.update(
+        safe_url=safe_url, filters=FILTERS, delivery_reasons=DELIVERY_REASONS
+    )
 
     @app.get("/health/live")
     async def live() -> dict[str, str]:
@@ -141,7 +154,7 @@ def create_app(
         if db_path.is_file():
             try:
                 async with engine.connect() as conn:
-                    await conn.execute(select(publications.c.message_id).limit(0))
+                    await conn.execute(select(publications.c.scheduled_for).limit(0))
             except SQLAlchemyError:
                 pass
             else:

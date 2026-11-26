@@ -160,6 +160,9 @@ uv run telegram-ai-newsroom worker resolve PUBLICATION_UUID published --message-
 
 Use `retry_wait` only after confirming the post is absent, or `failed` to close it
 without resending. Pass `--db` to each command if you use a different SQLite file.
+The candidate card shows the scheduled time, earliest retry time, and the latest
+delivery reason when available. Schedules created before the upgrade may have
+no recoverable original time after a retry.
 
 ## Commands
 

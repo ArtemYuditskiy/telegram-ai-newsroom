@@ -152,10 +152,14 @@ def test_schedule_migration_reports_legacy_conflicts(tmp_path: Path) -> None:
         command.upgrade(config, "head")
     with closing(sqlite3.connect(path)) as db, db:
         db.execute("UPDATE publications SET state = 'FAILED' WHERE id = ?", (second,))
+        db.execute("UPDATE publications SET state = 'RETRY_WAIT' WHERE id = ?", (first,))
     command.upgrade(config, "head")
     with closing(sqlite3.connect(path)) as db:
-        rows = db.execute("SELECT candidate_id FROM publications").fetchall()
-        assert rows == [(candidate,), (candidate,)]
+        rows = db.execute(
+            "SELECT candidate_id, scheduled_for, retry_not_before FROM publications ORDER BY state"
+        ).fetchall()
+        timestamp = "2026-11-20T00:00:00+00:00"
+        assert rows == [(candidate, timestamp, None), (candidate, None, timestamp)]
 
 
 def test_legacy_destination_requires_confirmation(database: Path) -> None:
