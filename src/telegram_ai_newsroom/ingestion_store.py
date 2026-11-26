@@ -75,6 +75,7 @@ articles = Table(
 class IngestionStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self.sessions = async_sessionmaker(engine)
+        self.record_sessions = async_sessionmaker(engine.execution_options(claim_write=True))
 
     async def approve(self, source: Source) -> None:
         hosts = json.dumps(sorted(source.hosts))
@@ -145,7 +146,14 @@ class IngestionStore:
     async def record(
         self, source: Source, entry: Entry, article: Article | None, reason: str
     ) -> str:
-        async with self.sessions.begin() as session:
+        async with self.record_sessions.begin() as session:
+            previous_reason = await session.scalar(
+                select(items.c.reason).where(
+                    items.c.source_url == source.url, items.c.entry_key == entry.key
+                )
+            )
+            if previous_reason is not None and not previous_reason.startswith("retry:"):
+                return "already_seen"
             candidate_id = None
             title_key = normalized_title(entry.title)
             if article is not None:

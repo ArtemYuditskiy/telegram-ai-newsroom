@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from telegram_ai_newsroom.cli.main import app
 from telegram_ai_newsroom.feed_http import FeedHttp, FetchError, Response, checked_host
-from telegram_ai_newsroom.ingestion import Collector, Source
+from telegram_ai_newsroom.ingestion import Article, Collector, Entry, Source
 from telegram_ai_newsroom.ingestion_store import IngestionStore, articles, collect_source, items
 from telegram_ai_newsroom.sqlite import open_database
 
@@ -145,7 +145,46 @@ def test_collection_deduplication_and_retry(tmp_path: Path) -> None:
                 )
                 reasons = (await conn.execute(select(items.c.reason))).scalars().all()
                 assert len(reasons) == 7
+                linked = await conn.scalar(
+                    select(items.c.candidate_id).where(items.c.entry_key == "5")
+                )
+                assert linked is not None
         finally:
+            await engine.dispose()
+
+    asyncio.run(exercise())
+
+
+def test_overlapping_collection_preserves_candidate_link(tmp_path: Path) -> None:
+    path = tmp_path / "ingestion.db"
+    config = Config(Path(__file__).resolve().parents[1] / "alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite+aiosqlite:///{path}")
+    command.upgrade(config, "head")
+
+    async def exercise() -> None:
+        engine, peer = open_database(path), open_database(path)
+        try:
+            store, other = IngestionStore(engine), IngestionStore(peer)
+            source = Source(FEED, frozenset({HOST}))
+            await store.approve(source)
+            entry = Entry("shared", f"{BASE}/article", TITLE, None, None)
+            article = Article(entry.url, "Extracted article", None)
+            assert not any(
+                await asyncio.gather(store.seen(source, entry), other.seen(source, entry))
+            )
+            results = await asyncio.gather(
+                store.record(source, entry, article, "eligible"),
+                other.record(source, entry, article, "eligible"),
+            )
+            assert sorted(results) == ["already_seen", "eligible"]
+            async with engine.connect() as db:
+                candidate = (await db.execute(select(articles.c.candidate_id))).scalar_one()
+                assert (await db.execute(select(items.c.reason, items.c.candidate_id))).one() == (
+                    "eligible",
+                    candidate,
+                )
+        finally:
+            await peer.dispose()
             await engine.dispose()
 
     asyncio.run(exercise())
